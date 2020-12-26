@@ -1,0 +1,13 @@
+D:\Projects\dotnet\SemesterAlgos\SemesterAlgos\bin\Debug\netcoreapp3.1\SemesterAlgos.exe
+D:\Projects\dotnet\SemesterAlgos\SemesterAlgos\bin\Debug\netcoreapp3.1\SemesterAlgos.deps.json
+D:\Projects\dotnet\SemesterAlgos\SemesterAlgos\bin\Debug\netcoreapp3.1\SemesterAlgos.runtimeconfig.json
+D:\Projects\dotnet\SemesterAlgos\SemesterAlgos\bin\Debug\netcoreapp3.1\SemesterAlgos.runtimeconfig.dev.json
+D:\Projects\dotnet\SemesterAlgos\SemesterAlgos\bin\Debug\netcoreapp3.1\SemesterAlgos.dll
+D:\Projects\dotnet\SemesterAlgos\SemesterAlgos\bin\Debug\netcoreapp3.1\SemesterAlgos.pdb
+D:\Projects\dotnet\SemesterAlgos\SemesterAlgos\obj\Debug\netcoreapp3.1\SemesterAlgos.csprojAssemblyReference.cache
+D:\Projects\dotnet\SemesterAlgos\SemesterAlgos\obj\Debug\netcoreapp3.1\SemesterAlgos.AssemblyInfoInputs.cache
+D:\Projects\dotnet\SemesterAlgos\SemesterAlgos\obj\Debug\netcoreapp3.1\SemesterAlgos.AssemblyInfo.cs
+D:\Projects\dotnet\SemesterAlgos\SemesterAlgos\obj\Debug\netcoreapp3.1\SemesterAlgos.csproj.CoreCompileInputs.cache
+D:\Projects\dotnet\SemesterAlgos\SemesterAlgos\obj\Debug\netcoreapp3.1\SemesterAlgos.dll
+D:\Projects\dotnet\SemesterAlgos\SemesterAlgos\obj\Debug\netcoreapp3.1\SemesterAlgos.pdb
+D:\Projects\dotnet\SemesterAlgos\SemesterAlgos\obj\Debug\netcoreapp3.1\SemesterAlgos.genruntimeconfig.cache
