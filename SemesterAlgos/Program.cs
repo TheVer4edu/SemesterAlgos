@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
@@ -102,24 +103,25 @@ namespace SemesterAlgos {
 
         public int PerformCommand(string input) {
             if (input.Length == 0) return -1;
-            if (int.TryParse(input?[0].ToString(), out int result))
+            if (int.TryParse(input[0].ToString(), out int result))
             {
-                string[] data = input?.Split(' ').Where(x => x != "").ToArray();
+                string[] data = input.Split(' ').Where(x => x != "").ToArray();
                 switch (result)
                 {
                     case 0:
-                        if (data?.Length < 2)
+                        if (data.Length < 2)
                             ShowManual();
                         else
                             ShowManual(data?[1]);
                         break;
                     case 1:
-                        if(data?.Length < 2) { 
+                        if(data.Length < 2) { 
                             ShowMistakeMessage();
                             return -1;
                         }
-                        aeroflotMap.Nodes.Add(new Node<string>(data?[1]));
-                        Console.WriteLine($"Добавлено: {data?[1]}");
+                        string value = String.Join(" ", data.Skip(1).ToArray());
+                        aeroflotMap.AddNode(new Node<string>(value));
+                        Console.WriteLine($"Добавлено: {value}");
                         break;
                     case 2:
                         if(data?.Length != 4) {
@@ -129,27 +131,33 @@ namespace SemesterAlgos {
                         AddElementToGraph(data[1], data[2], data[3]);
                         break;
                     case 3:
-                        if(data?.Length == 2 && int.TryParse(data?[1], out int removableIndex)) 
+                        if(data.Length == 2 && int.TryParse(data[1], out int removableIndex)) 
                             aeroflotMap.Delete(removableIndex);
                         else {
                             ShowMistakeMessage();
                             return -1;
                         }
-                        Console.WriteLine($"Нас покинул: {data?[1]}");
+                        Console.WriteLine($"Нас покинул: {data[1]}");
                         break;
                     case 4:
-                        switch (data?.Length) {
-                            case 3:
-                                FindRoute(data[1], data[2]);
-                                break;
-                            case 2:
-                                FindRoute(data[1]);
-                                break;
+                        switch (data.Length) {
                             case 1:
                                 FindRoute();
                                 break;
+                            case 2:
+                                FindRoute(mode: data[1]);
+                                break;
+                            case 3: 
+                                FindRoute(data[1], data[2]);
+                                break;
                             case 4:
                                 FindRoute(data[1], data[2], data[3]);
+                                break;
+                            case 5:
+                                FindRoute(data[1], data[2], data[3], data[4]);
+                                break;
+                            case 6:
+                                FindRoute(data[1], data[2], data[3], data[4], data[5]);
                                 break;
                             default:
                                 ShowMistakeMessage();
@@ -214,15 +222,18 @@ namespace SemesterAlgos {
                         Console.WriteLine("3 [a]: Удалить элемент вместе со всеми связями, независимо от направления");
                         break;
                     case 4:
-                        Console.WriteLine("4: Найти наилучшие циклические маршруты из 0 в 0 и зарегистрировать их\n" +
-                                          "4 [0] [a] [b]: Найти полные маршруты из a в b и зарегистрировать их\n" +
+                        Console.WriteLine("4: То же, что и '4 1' \n" +
+                                          "4 [-1] [a] [b]: Найти полные маршруты из a в b и зарегистрировать их. ВНИМАНИЕ! ЭТОТ МЕТОД НЕОПТИМАЛЕН! ИСПОЛЬЗУЙТЕ '4 0'\n" +
+                                          "4 [0] [a] [b]: Оптимальный поиск полных маршрутов из a в b и их регистрация\n" +
+                                          "4 [0] [a] [b] [l]: Найти полные маршруты из a в b до l проб и зарегистрировать их\n" +
+                                          "4 [0] [a] [b] [l] [f]: Найти маршруты из a в b до l проб и зарегистрировать их. Если f не равно нулю, будут обработаны только полные пути\n" +
                                           "4 [1]: Вывести номера зарегистрированных маршрутов\n" +
                                           "4 [2] [n]: Отрисовать маршрут с индексом n\n" +
                                           "4 [3] [n]: Вывести текстовое обозначение маршрута n");
                         break;
                     case 7:
                         Console.WriteLine("7: Вывод графа на экран\n" +
-                                          "\t7 [1]: Вывод графа в графическом виде\n" +
+                                          "\t7 [1]: Вывод графа в псевдографическом виде\n" +
                                           "\t7 [2]: Вывод графа в текстовом виде");
                         break;
                     case 8:
@@ -255,20 +266,29 @@ namespace SemesterAlgos {
             }
         }
 
-        private void FindRoute(string mode = "-1", string index = "-1", string index2 = "-1") {
-            if (int.TryParse(mode ?? "-1", out int imode) &&
+        private void FindRoute(string mode = "1", string index = "-1", string index2 = "-1", string count = "-1", string visitAll = "1") {
+            if (int.TryParse(mode, out int imode) &&
                 int.TryParse(index, out int iindex) && 
-                int.TryParse(index2, out int iindex2)) {
+                int.TryParse(index2, out int iindex2) && 
+                int.TryParse(count, out int icount) && 
+                int.TryParse(visitAll, out int ivisitAll)) {
+                Stopwatch sw = new Stopwatch();
                 switch (imode) {
                     case -1:
-                        bestRoutes = aeroflotMap.FindBestRoutes();
+                        sw.Start();
+                        bestRoutes = aeroflotMap.FindBestRoutes(iindex, iindex2); //неоптимальный алгоритм   
+                        sw.Stop();
                         Console.Clear();
-                        Console.WriteLine($"Найдено маршрутов: {bestRoutes.Count}");
+                        Console.WriteLine($"[{sw.ElapsedMilliseconds / 1000d}s]Найдено маршрутов из {iindex} в {iindex2}: {bestRoutes.Count}");
+                        sw.Reset();
                         break;
                     case 0:
-                        bestRoutes = aeroflotMap.FindBestRoutes(iindex, iindex2);
+                        sw.Start();
+                        bestRoutes = aeroflotMap.FindBestRoutes(iindex, iindex2, ivisitAll != 0, icount); //оптимальный алгоритм   
+                        sw.Stop();
                         Console.Clear();
-                        Console.WriteLine($"Найдено маршрутов из {iindex} в {iindex2}: {bestRoutes.Count}");
+                        Console.WriteLine($"[{sw.ElapsedMilliseconds / 1000d}s]Найдено маршрутов из {iindex} в {iindex2}: {bestRoutes.Count}");
+                        sw.Reset();
                         break;
                     case 1:
                         if(bestRoutes.Count > 0) 
@@ -356,7 +376,6 @@ namespace SemesterAlgos {
     }
     public class Graph<T> : IComparable<Graph<T>>, IEquatable<Graph<T>> where T: IComparable<T> {
         public readonly List<Node<T>> Nodes = new List<Node<T>>();
-
         public void SimplePrint() {
             foreach (Node<T> node in Nodes) {
                 Console.WriteLine(node.ToString());
@@ -384,7 +403,6 @@ namespace SemesterAlgos {
             Console.ReadKey();
             Console.Clear();
         }
-
         public void AddNode(T value) {
             this.AddNode(new Node<T>(value));
         }
@@ -392,7 +410,7 @@ namespace SemesterAlgos {
             this.Nodes.Add(node);
         }
         public int AddIncidentNode(Node<T> node, int[] incidentIndexes) {
-            Nodes.Add(node);
+            AddNode(node);
             return ConnectNodesByIndex(node.Index, incidentIndexes);
         }
         public int ConnectNodesByIndex(int first, int[] incidentIndexes) {
@@ -405,7 +423,7 @@ namespace SemesterAlgos {
         public int ConnectNodesByIndex(int first, int second) {
             return DirectNodeTo(first, second)*DirectNodeTo(second, first);
         }
-        public int DirectNodeTo(int from, int to) {
+        public int DirectNodeTo(int from, int to, bool showMessage = true) {
             if (from == to)
                 return -2;
             Node<T> nodeFrom, nodeTo;
@@ -417,7 +435,7 @@ namespace SemesterAlgos {
                 return 1;
             }
             nodeFrom.IncidentNodes.Add(nodeTo);
-            Console.WriteLine($"Путь из \"{nodeFrom.Value.ToString()}\" в \"{nodeTo.Value.ToString()}\"");
+            if(showMessage) Console.WriteLine($"Путь из \"{nodeFrom.Value.ToString()}\" в \"{nodeTo.Value.ToString()}\"");
             return 0;
         }
         private void AllocateNodesCoords(int flipAngle = 0) {
@@ -441,6 +459,30 @@ namespace SemesterAlgos {
                     result.Add(node.Index);
             return result;
         }
+        public List<Graph<T>> FindBestRoutes(int from = 0, int to = 0, bool visitAllNodes = true, int limit = -1) {
+            List<Graph<T>> result = new List<Graph<T>>();
+            List<int[]> allPermutations = FindAllRoutes(from, limit).Select(x => x.ToArray()).ToList();
+            if(from != to) 
+                allPermutations = allPermutations.Where(x => x.Last() == to).ToList();
+            double curPermutation = 0, fullCount = allPermutations.Count, percent = 0;
+            foreach (int[] permutation in allPermutations) {
+                percent = Math.Round(curPermutation++ / fullCount, 2) * 100d;
+                Console.WriteLine($"Performing: {percent}%");
+                Graph<T> graph = CreateRouteChainFromIndexes(permutation);
+                var lastReal = Nodes.First(x => x.Index == graph.Nodes.Last().Index).IncidentNodes;
+                if(from == to &&
+                   lastReal.Any(x => x.Index == to))
+                    graph.DirectNodeTo(graph.Nodes.Last().Index, from, false);
+                if(!visitAllNodes || graph.Nodes.Count == this.Nodes.Count)  {
+                    if(from == to && graph.Nodes.Last().IncidentNodes.Contains(graph.Nodes.First()))
+                        result.Add(graph);
+                    else if(from != to)
+                        result.Add(graph);
+                }
+            }
+            result = result.ToList();
+            return result;
+        }
         public List<Graph<T>> FindBestRoutes(int from = 0, int to = 0) {
             List<Graph<T>> result = new List<Graph<T>>();
             int[] allIndexes = Nodes.Select(x => x.Index).ToArray();
@@ -452,21 +494,8 @@ namespace SemesterAlgos {
             Node<T> startNode = Nodes.First(x => x.Index == from);
             double curPermutation = 0, fullCount = allPermutations.Count;
             foreach (int[] permutation in allPermutations) {
-                Console.WriteLine($"Performing: {Math.Round(curPermutation / fullCount, 2) * 100d}%");
-                Graph<T> graph = new Graph<T>();
-                graph.Nodes.Add(startNode.Copy());
-                foreach (int i in permutation) {
-                    if(i == from) continue;
-                    var last = Nodes.First(x => x.Index == graph.Nodes.Last().Index);
-                    var current = Nodes.First(x => x.Index == i);
-                    if (last.IncidentNodes.Contains(current)) {
-                        graph.Nodes.Add(current.Copy());
-                        graph.DirectNodeTo(last.Index, current.Index);
-                    }
-                    else break;
-                    GC.Collect();
-                }
-
+                Console.WriteLine($"Performing: {Math.Round(curPermutation++ / fullCount, 2) * 100d}%");
+                Graph<T> graph = CreateRouteChainFromIndexes(permutation);
                 var e = Nodes.First(x => x.Index == graph.Nodes.Last().Index).IncidentNodes;
                 if(from == to &&
                    e.Any(x => x.Index == to))
@@ -478,17 +507,60 @@ namespace SemesterAlgos {
                         result.Add(graph);
                 }
             }
-            result = result.Distinct().ToList();
+            result = result.ToList();
             return result;
         }
-        public override int GetHashCode() {
-            int result = 31;
-            unchecked {
-                foreach (Node<T> node in Nodes) {
-                    result += node.GetHashCode();
+        private Graph<T> CreateRouteChainFromIndexes(int[] indexes) {
+            int from = indexes[0];
+            Node<T> startNode = Nodes.First(x => x.Index == from);
+            Graph<T> graph = new Graph<T>();
+            graph.AddNode(startNode.Copy());
+            foreach (int i in indexes) {
+                if(i == from) continue;
+                var last = Nodes.First(x => x.Index == graph.Nodes.Last().Index);
+                var current = Nodes.First(x => x.Index == i);
+                if (last.IncidentNodes.Contains(current)) {
+                    graph.AddNode(current.Copy());
+                    graph.DirectNodeTo(last.Index, current.Index, false);
                 }
+                else break;
             }
-            return result;
+            return graph;
+        }
+        public List<List<int>> FindAllRoutes(int from = 0, int limit = -1) {
+            List<int> visited = new List<int>();
+            List<List<int>> resultMap = new List<List<int>>();
+            Node<T> fromNode = Nodes.First(x => x.Index == from);
+            VisitIncidents(fromNode, visited, resultMap, limit);
+            return resultMap;
+        }
+        private void VisitIncidents(Node<T> node, List<int> visited, List<List<int>> maps, int limit = -1) {
+            if(limit > -1 && maps.Count >= limit) return;
+            visited.Add(node.Index);
+            foreach (Node<T> incidentNode in node.IncidentNodes) {
+                if(visited.Contains(incidentNode.Index))
+                    continue;
+                VisitIncidents(incidentNode, visited, maps, limit);
+            }
+            if(!maps.Any(x => isSublist(x, visited)))
+                maps.Add(visited.Select(x => x).ToList());
+            visited.Remove(node.Index);
+        }
+        private bool isSublist(List<int> parent, List<int> sub) {
+            return FindSubarrayStartIndex(parent.ToArray(), sub.ToArray()) != -1;
+        }
+        public static int FindSubarrayStartIndex(int[] array, int[] subArray)
+        {
+            for (var i = 0; i < array.Length - subArray.Length + 1; i++)
+                if (ContainsAtIndex(array, subArray, i))
+                    return i;
+            return -1;
+        }
+        public static bool ContainsAtIndex(int[] array, int[] subarray, int index) {
+            for(int i = 0; i < Math.Min(array.Length, subarray.Length); i++) {
+                if(array[index + i] != subarray[i]) return false; 	
+            }
+            return true;
         }
         private void CorrectExistingMap(int[] map, int from) {
             int index = Array.IndexOf(map, from);
@@ -508,9 +580,18 @@ namespace SemesterAlgos {
                 int index = Array.IndexOf(permutation, i, 0, position);
                 if (index != -1) 
                     continue;
-                permutation[position] = i;
+                permutation[position] = permutation[i];
                 MakePermutations(permutation, allPermutations, position + 1);
             }
+        }
+        public override int GetHashCode() {
+            int result = 31;
+            unchecked {
+                foreach (Node<T> node in Nodes) {
+                    result += node.GetHashCode();
+                }
+            }
+            return result;
         }
         public int CompareTo(Graph<T> other) {
             if (ReferenceEquals(this, other)) return 0;
