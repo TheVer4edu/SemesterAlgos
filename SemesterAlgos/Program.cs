@@ -1,9 +1,11 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Drawing;
+using System.IO;
 using System.Linq;
-using System.Net.NetworkInformation;
 using System.Text;
+using Microsoft.VisualBasic.CompilerServices;
 
 namespace SemesterAlgos {
     class Program {
@@ -16,44 +18,74 @@ namespace SemesterAlgos {
              * но не быть обратного рейса. А поскольку наш клиент проживает в Челябинске,
              * то начнет и закончит свой маршрут он в Челябинске.
              */
-            /*Graph<string> aeroflotMap = new Graph<string>();
-            aeroflotMap.Nodes.Add(new Node<string>("Москва")); //0
-            aeroflotMap.AddIncidentNode(new Node<string>("Санкт-Петербург"), new []{0}); //1
-            aeroflotMap.AddIncidentNode(new Node<string>("Екатеринбург"), new []{0}); //2
-            aeroflotMap.AddIncidentNode(new Node<string>("Челябинск"), new []{2}); //3
-            aeroflotMap.AddIncidentNode(new Node<string>("Омск"), new []{2}); //4 
-            aeroflotMap.AddIncidentNode(new Node<string>("Курган"), new []{2, 3}); //5
-            aeroflotMap.AddIncidentNode(new Node<string>("Петропавловск-Камчатский"), new []{4, 10}); //6
-            aeroflotMap.Nodes.Add(new Node<string>("Крым")); //7
-            aeroflotMap.DirectNodeTo(7, 0);
-            aeroflotMap.AwesomePrint();
-            Console.ReadKey();
-            Console.Clear();
-            aeroflotMap.SimplePrint();
-            Console.ReadKey();*/
+            
             ProgramCLI cli;
-            if (args.Length > 0)
+            if (args.Length > 0) {
                 cli = new ProgramCLI(args.First(x => x.EndsWith(".cg")));
+                cli.ExecuteFile();
+            }
             else
                 cli = new ProgramCLI();
             cli.Run();
         }
     }
+    class FileReader : IEnumerable<string> {
+        private string fileName;
+        private StreamReader sr;
 
-    class FileReader {
-        public FileReader(string filename) {
-            //вот тут можно и поспать...
-            //TODO реализовать чтение файла и придумать формат
+        public FileReader(string fileName) {
+            this.fileName = fileName;
+        }
+
+        public FileReader OpenFile() {
+            if (fileName == null || !File.Exists(fileName)) {
+                Console.WriteLine($"File {fileName} not found");
+            }
+            else {
+                try {
+                    sr = new StreamReader(fileName);
+                }
+                catch (Exception e) {
+                    Console.WriteLine($"Unable to access file {fileName}");
+                }
+            }
+
+            return this;
+        }
+
+        public IEnumerator<string> GetEnumerator()
+        {
+            string line;
+            if(sr == null) yield break;
+            while ((line = sr.ReadLine()) != null) {
+                string material = line.Trim(' ');
+                if(material.Length == 0 || material[0] == '#') continue;
+                if (material.Contains('#'))
+                    material = material.Substring(0, material.IndexOf('#', StringComparison.Ordinal));
+                yield return material;
+            }
+        }
+        IEnumerator IEnumerable.GetEnumerator() {
+            return GetEnumerator();
         }
     }
-    
     public class ProgramCLI {
         private Graph<string> aeroflotMap = new Graph<string>();
+        private List<Graph<string>> bestRoutes = new List<Graph<string>>();
+        private FileReader _fileReader;
 
         public ProgramCLI() { }
 
         public ProgramCLI(string filename) {
-            //TODO new FileReader?
+            _fileReader = new FileReader(filename);
+        }
+
+        public int ExecuteFile() {
+            if (_fileReader == null)
+                return -1;
+            foreach (string command in _fileReader.OpenFile())
+                this.PerformCommand(command);
+            return 0;
         }
         
         public void Run() {
@@ -63,67 +95,97 @@ namespace SemesterAlgos {
             {
                 Console.Write("Введите команду: ");
                 string input = Console.ReadLine();
-                int result = 0;
-                if (int.TryParse(input?[0].ToString(), out result))
-                {
-                    string[] data = input?.Split(' ');
-                    switch (result)
-                    {
-                        case 0:
-                            if (data.Length < 2)
-                                ShowManual();
-                            else
-                                ShowManual(data[1]);
-                            break;
-                        case 1:
-                            if(data.Length < 2) { 
-                                ShowMistakeMessage();
-                                continue;
-                            }
-                            aeroflotMap.Nodes.Add(new Node<string>(data[1]));
-                            Console.WriteLine($"Добавлено: {data[1]}");
-                            break;
-                        case 2:
-                            if(data.Length < 4) {
-                                ShowMistakeMessage();
-                                continue;
-                            }
-                            AddElementToGraph(data[1], data[2], data[3]);
-                            break;
-                        case 3:
-                            if(data.Length < 2) {
-                                ShowMistakeMessage();
-                                continue;
-                            }
-                            aeroflotMap.Delete(data[1]);
-                            Console.WriteLine($"Нас покинул: {data[1]}");
-                            break;
-                        case 7:
-                            if(data.Length < 2) {
-                                Console.WriteLine("Укажите способ вывода графа на экран вторым параметром\n" +
-                                                  "Подробнее: команда 0 7");
-                            } else if (data[1] == "1")
-                                aeroflotMap.AwesomePrint();
-                            else if (data[1] == "2")
-                                aeroflotMap.SimplePrint();
-                            else 
-                                Console.WriteLine("Другого способа нет");
-                            break;
-                        case 8:
-                            Console.Clear();
-                            break;
-                        case 9:
-                            isRunning = false;
-                            Console.WriteLine("Покедова :)");
-                            break;
-                        default:
-                            Console.WriteLine("Казалось бы всё хорошо, но ты всё равно что-то делаешь не так");
-                            break;
-                    }
-                }
-                else
-                    Console.WriteLine("Не прокатило. Проверьте, что всё делаете правильно");
+                int result = PerformCommand(input);
+                isRunning = result != int.MinValue;
             }
+        }
+
+        public int PerformCommand(string input) {
+            if (input.Length == 0) return -1;
+            if (int.TryParse(input?[0].ToString(), out int result))
+            {
+                string[] data = input?.Split(' ').Where(x => x != "").ToArray();
+                switch (result)
+                {
+                    case 0:
+                        if (data?.Length < 2)
+                            ShowManual();
+                        else
+                            ShowManual(data?[1]);
+                        break;
+                    case 1:
+                        if(data?.Length < 2) { 
+                            ShowMistakeMessage();
+                            return -1;
+                        }
+                        aeroflotMap.Nodes.Add(new Node<string>(data?[1]));
+                        Console.WriteLine($"Добавлено: {data?[1]}");
+                        break;
+                    case 2:
+                        if(data?.Length != 4) {
+                            ShowMistakeMessage();
+                            return -1;
+                        }
+                        AddElementToGraph(data[1], data[2], data[3]);
+                        break;
+                    case 3:
+                        if(data?.Length == 2 && int.TryParse(data?[1], out int removableIndex)) 
+                            aeroflotMap.Delete(removableIndex);
+                        else {
+                            ShowMistakeMessage();
+                            return -1;
+                        }
+                        Console.WriteLine($"Нас покинул: {data?[1]}");
+                        break;
+                    case 4:
+                        switch (data?.Length) {
+                            case 3:
+                                FindRoute(data[1], data[2]);
+                                break;
+                            case 2:
+                                FindRoute(data[1]);
+                                break;
+                            case 1:
+                                FindRoute();
+                                break;
+                            case 4:
+                                FindRoute(data[1], data[2], data[3]);
+                                break;
+                            default:
+                                ShowMistakeMessage();
+                                break;
+                        }
+                        break;
+                    case 7:
+                        if(data?.Length != 2)
+                            Console.WriteLine("Укажите способ вывода графа на экран вторым параметром\n" +
+                                              "Подробнее: команда 0 7");
+                        else switch (data[1]) {
+                            case "1":
+                                aeroflotMap.AwesomePrint();
+                                break;
+                            case "2":
+                                aeroflotMap.SimplePrint();
+                                break;
+                            default:
+                                Console.WriteLine("Другого способа нет");
+                                break;
+                        }
+                        break;
+                    case 8:
+                        Console.Clear();
+                        break;
+                    case 9:
+                        Console.WriteLine("Покедова :)");
+                        return int.MinValue;
+                    default:
+                        Console.WriteLine("Казалось бы всё хорошо, но ты всё равно что-то делаешь не так");
+                        break;
+                }
+            }
+            else
+                Console.WriteLine("Не прокатило. Проверьте, что всё делаете правильно");
+            return result;
         }
 
         private void ShowManual(string s = "-1") {
@@ -135,6 +197,7 @@ namespace SemesterAlgos {
                                           "1 [a]: Добавить элемент\n" +
                                           "2 [m] [a] [b]: Связать элемент\n" +
                                           "3 [a]: Удалить элемент\n" +
+                                          "4: Работа с маршрутами\n" +
                                           "7 [m]: Вывод графа на экран\n" +
                                           "8: Очистка консоли\n" +
                                           "9: Выход");
@@ -149,6 +212,13 @@ namespace SemesterAlgos {
                         break;
                     case 3:
                         Console.WriteLine("3 [a]: Удалить элемент вместе со всеми связями, независимо от направления");
+                        break;
+                    case 4:
+                        Console.WriteLine("4: Найти наилучшие циклические маршруты из 0 в 0 и зарегистрировать их\n" +
+                                          "4 [0] [a] [b]: Найти полные маршруты из a в b и зарегистрировать их\n" +
+                                          "4 [1]: Вывести номера зарегистрированных маршрутов\n" +
+                                          "4 [2] [n]: Отрисовать маршрут с индексом n\n" +
+                                          "4 [3] [n]: Вывести текстовое обозначение маршрута n");
                         break;
                     case 7:
                         Console.WriteLine("7: Вывод графа на экран\n" +
@@ -185,28 +255,59 @@ namespace SemesterAlgos {
             }
         }
 
+        private void FindRoute(string mode = "-1", string index = "-1", string index2 = "-1") {
+            if (int.TryParse(mode ?? "-1", out int imode) &&
+                int.TryParse(index, out int iindex) && 
+                int.TryParse(index2, out int iindex2)) {
+                switch (imode) {
+                    case -1:
+                        bestRoutes = aeroflotMap.FindBestRoutes();
+                        Console.Clear();
+                        Console.WriteLine($"Найдено маршрутов: {bestRoutes.Count}");
+                        break;
+                    case 0:
+                        bestRoutes = aeroflotMap.FindBestRoutes(iindex, iindex2);
+                        Console.Clear();
+                        Console.WriteLine($"Найдено маршрутов из {iindex} в {iindex2}: {bestRoutes.Count}");
+                        break;
+                    case 1:
+                        if(bestRoutes.Count > 0) 
+                            Console.WriteLine($"Существуют маршруты, диапазон [0; {bestRoutes.Count - 1}]");
+                        else 
+                            Console.WriteLine("Таких маршрутов не бывает");
+                        break;
+                    case 2:
+                        if(iindex < bestRoutes.Count)
+                            bestRoutes[iindex].AwesomePrint();
+                        else
+                            Console.WriteLine("Такого маршрута ещё не придумали");
+                        break;
+                    case 3:
+                        if(iindex < bestRoutes.Count)
+                            bestRoutes[iindex].SimplePrint();
+                        else
+                            Console.WriteLine("Такого маршрута ещё не придумали");
+                        break;
+                }
+            } 
+        }
+
         private void ShowMistakeMessage() {
             Console.WriteLine("Шалишь... Учи матчасть перед использованием...");
         }
     }
-    
     public class GraphPrinter {
-
-        public static void PrintPoints() {
-            int i = 0;
-            foreach (Point point in GetConsoleCoords(5)) {
-                Console.SetCursorPosition(point.X, point.Y);
-                Console.Write(i++);
-            }
-            Console.SetCursorPosition(0, 0);
-        }
-        public static void DrawLine(Point from, Point to, char symbol) {
+        public static void DrawEdgeLine(Point from, Point to, char symbol, bool doubleSide = false) {
+            Point start = from;
             int dx = Math.Abs(to.X - from.X), sx = from.X < to.X ? 1 : -1;
             int dy = Math.Abs(to.Y - from.Y), sy = from.Y < to.Y ? 1 : -1;
             int err = (dx > dy ? dx : -dy) / 2, e2;
             while(true) {
                 Console.SetCursorPosition(from.X, from.Y);
+                if (Math.Abs(from.X - to.X) == 1 || Math.Abs(from.Y - to.Y) == 1) Console.ForegroundColor = ConsoleColor.Red;
+                if (doubleSide && (Math.Abs(start.X - from.X) == 1 || Math.Abs(start.Y - from.Y) == 1)) Console.ForegroundColor = ConsoleColor.Red;
                 Console.Write(symbol);
+                Console.ResetColor();
                 if (from.X == to.X && from.Y == to.Y) break;
                 e2 = err;
                 if (e2 > -dx) { err -= dy; from.X += sx; }
@@ -220,17 +321,17 @@ namespace SemesterAlgos {
             else
                 return new Point(nodeCoord.X - half + 1 > 0 ? nodeCoord.X - half + 1 : 0, nodeCoord.Y);
         }
-        public static List<Point> GetConsoleCoords(int cornersCount) {
+        public static List<Point> GetConsoleCoords(int cornersCount, int flipAngle = 0) {
             double bestRadius = Console.WindowHeight - 2;
             Point resolutionFactor = new Point(2, 1);
-            var e = GetNodesCoords(cornersCount, bestRadius);
+            var e = GetNodesCoords(cornersCount, bestRadius, flipAngle);
             return e.Select(p => new Point(p.X * resolutionFactor.X, p.Y * resolutionFactor.Y)).ToList();
         } //Координаты для консолей с учётом их разрешения
-        public static List<Point> GetNodesCoords(int cornersCount, double radius) {
+        public static List<Point> GetNodesCoords(int cornersCount, double radius, int flipAngle = 0) {
             List<Point> result = new List<Point>();
             result.Add(new Point((int) radius/2, 0));
             for (int i = 1; i < cornersCount; i++) {
-                Point delta = FromPolarToDecart(GetAngleInDegrees(cornersCount)*(i-1)*2,
+                Point delta = FromPolarToDecart(GetAngleInDegrees(cornersCount)*(i-1)*2 + flipAngle,
                     GetSideLength(cornersCount, radius/2));
                 Point last = result.Last();
                 result.Add(new Point(Math.Abs(last.X + delta.X), Math.Abs(last.Y + delta.Y)));
@@ -253,8 +354,7 @@ namespace SemesterAlgos {
         } //Перевод в радианы
         
     }
-
-    public class Graph<T> {
+    public class Graph<T> : IComparable<Graph<T>>, IEquatable<Graph<T>> where T: IComparable<T> {
         public readonly List<Node<T>> Nodes = new List<Node<T>>();
 
         public void SimplePrint() {
@@ -264,11 +364,13 @@ namespace SemesterAlgos {
         }
         public void AwesomePrint() {
             Console.Clear();
-            AllocateNodesCoords();
-            char edgeSymbol = '.';
+            AllocateNodesCoords(0);
+            char edgeSymbol = ':';
             foreach (Node<T> node in Nodes) {
                 foreach (Node<T> incidentNode in node.IncidentNodes) {
-                    GraphPrinter.DrawLine(node.ConsoleCoords, incidentNode.ConsoleCoords, edgeSymbol);
+                    bool doubleConnected = node.IncidentNodes.Contains(incidentNode)
+                                           && incidentNode.IncidentNodes.Contains(node);
+                    GraphPrinter.DrawEdgeLine(node.ConsoleCoords, incidentNode.ConsoleCoords, edgeSymbol, doubleConnected);
                 }
             }
             Func<Node<T>, string> format = (n) => $"[{n.Index.ToString()}]: {n.Value.ToString()}";
@@ -281,6 +383,13 @@ namespace SemesterAlgos {
             Console.Write("Для прожолжения нажмите любую клавишу...");
             Console.ReadKey();
             Console.Clear();
+        }
+
+        public void AddNode(T value) {
+            this.AddNode(new Node<T>(value));
+        }
+        public void AddNode(Node<T> node) {
+            this.Nodes.Add(node);
         }
         public int AddIncidentNode(Node<T> node, int[] incidentIndexes) {
             Nodes.Add(node);
@@ -297,6 +406,8 @@ namespace SemesterAlgos {
             return DirectNodeTo(first, second)*DirectNodeTo(second, first);
         }
         public int DirectNodeTo(int from, int to) {
+            if (from == to)
+                return -2;
             Node<T> nodeFrom, nodeTo;
             try {
                 nodeFrom = Nodes.First(x => x.Index == from);
@@ -306,39 +417,161 @@ namespace SemesterAlgos {
                 return 1;
             }
             nodeFrom.IncidentNodes.Add(nodeTo);
+            Console.WriteLine($"Путь из \"{nodeFrom.Value.ToString()}\" в \"{nodeTo.Value.ToString()}\"");
             return 0;
         }
-        private void AllocateNodesCoords() {
+        private void AllocateNodesCoords(int flipAngle = 0) {
+            if (Nodes.All(x => x.ConsoleCoords != Point.Empty))
+                return;
             int nodesCount = Nodes.Count;
-            var e = GraphPrinter.GetConsoleCoords(nodesCount);
+            List<Point> consoleCoords = GraphPrinter.GetConsoleCoords(nodesCount, flipAngle);
             for (int i = 0; i < nodesCount; i++) {
-                Nodes[i].ConsoleCoords = e[i];
+                Nodes[i].ConsoleCoords = consoleCoords[i];
             }
         }
+        public void Delete(int index) {
+            foreach (Node<T> node in Nodes)
+                node.IncidentNodes.RemoveAll(x => x.Index == index);
+            Nodes.RemoveAll(x => x.Index == index);
+        }
+        public List<int> FindSameNodes(T value) {
+            List<int> result = new List<int>();
+            foreach (Node<T> node in Nodes)
+                if(node.Value.CompareTo(value) == 0)
+                    result.Add(node.Index);
+            return result;
+        }
+        public List<Graph<T>> FindBestRoutes(int from = 0, int to = 0) {
+            List<Graph<T>> result = new List<Graph<T>>();
+            int[] allIndexes = Nodes.Select(x => x.Index).ToArray();
+            CorrectExistingMap(allIndexes, from);
+            List<int[]> allPermutations = new List<int[]>();
+            MakePermutations(allIndexes, allPermutations, 1);
+            if(from != to) 
+                allPermutations = allPermutations.Where(x => x.Last() == to).ToList();
+            Node<T> startNode = Nodes.First(x => x.Index == from);
+            double curPermutation = 0, fullCount = allPermutations.Count;
+            foreach (int[] permutation in allPermutations) {
+                Console.WriteLine($"Performing: {Math.Round(curPermutation / fullCount, 2) * 100d}%");
+                Graph<T> graph = new Graph<T>();
+                graph.Nodes.Add(startNode.Copy());
+                foreach (int i in permutation) {
+                    if(i == from) continue;
+                    var last = Nodes.First(x => x.Index == graph.Nodes.Last().Index);
+                    var current = Nodes.First(x => x.Index == i);
+                    if (last.IncidentNodes.Contains(current)) {
+                        graph.Nodes.Add(current.Copy());
+                        graph.DirectNodeTo(last.Index, current.Index);
+                    }
+                    else break;
+                    GC.Collect();
+                }
 
-        public void Delete(string s) {
-            throw new NotImplementedException();
+                var e = Nodes.First(x => x.Index == graph.Nodes.Last().Index).IncidentNodes;
+                if(from == to &&
+                   e.Any(x => x.Index == to))
+                    graph.DirectNodeTo(graph.Nodes.Last().Index, from);
+                if(graph.Nodes.Count == Nodes.Count)  {
+                    if(from == to && graph.Nodes.Last().IncidentNodes.Contains(graph.Nodes.First()))
+                        result.Add(graph);
+                    else if(from != to)
+                        result.Add(graph);
+                }
+            }
+            result = result.Distinct().ToList();
+            return result;
+        }
+        public override int GetHashCode() {
+            int result = 31;
+            unchecked {
+                foreach (Node<T> node in Nodes) {
+                    result += node.GetHashCode();
+                }
+            }
+            return result;
+        }
+        private void CorrectExistingMap(int[] map, int from) {
+            int index = Array.IndexOf(map, from);
+            if(index == 0) return;
+            int value = map[0];
+            map[0] = map[index];
+            map[index] = value;
+        }
+        private void MakePermutations(int[] permutation, List<int[]> allPermutations, int position) {
+            if (position == permutation.Length) {
+                int[] nextPermutation = new int[permutation.Length];
+                Array.Copy(permutation, nextPermutation, permutation.Length);
+                allPermutations.Add(nextPermutation);
+                return;
+            }
+            for (int i = 0; i < permutation.Length; i++) {
+                int index = Array.IndexOf(permutation, i, 0, position);
+                if (index != -1) 
+                    continue;
+                permutation[position] = i;
+                MakePermutations(permutation, allPermutations, position + 1);
+            }
+        }
+        public int CompareTo(Graph<T> other) {
+            if (ReferenceEquals(this, other)) return 0;
+            if (ReferenceEquals(null, other)) return 1;
+            return this.GetHashCode().CompareTo(other.GetHashCode());
+        }
+        public bool Equals(Graph<T> other) {
+            if (ReferenceEquals(null, other)) return false;
+            if (ReferenceEquals(this, other)) return true;
+            return Equals(this.GetHashCode(), other.GetHashCode());
         }
     }
-    public class Node<T> {
+    public class Node<T> : ICloneable, IComparable<Node<T>> {
         private static int _maxIndex;
         public int Index { get; }
         public Point ConsoleCoords { get; set; }
         
         public readonly List<Node<T>> IncidentNodes = new List<Node<T>>();
         public T Value { get; }
-        
         public Node(T value) {
+            if(value == null) throw new ArgumentException("Value should not be null");
             Value = value;
             this.Index = _maxIndex++;
         }
-
+        private Node(T value, int index, Point consoleCoords) {
+            if(value == null) throw new ArgumentException("Value should not be null");
+            Value = value;
+            this.Index = index;
+            this.ConsoleCoords = consoleCoords;
+        }
         public override string ToString() {
             StringBuilder sb = new StringBuilder();
             sb.Append($"[{this.Index}]: \"{this.Value.ToString()}\" < ");
             sb.Append(String.Join(", ", IncidentNodes.Select(x => x.Index)));
             sb.Append(" >");
             return sb.ToString();
+        }
+        public object Clone() {
+            return this.Copy();
+        }
+
+        public override int GetHashCode() {
+            int result = 31;
+            unchecked {
+                result += 31 * Index;
+                result += 31 * Value.ToString().Sum(x => (int) x);
+                result += 31 * ConsoleCoords.X;
+                result += 31 * ConsoleCoords.Y;
+                result += 31 * this.ToString().Sum(x => (int) x);
+            }
+            return result;
+        }
+
+        public Node<T> Copy() {
+            return new Node<T>(this.Value, this.Index, ConsoleCoords);
+        }
+
+        public int CompareTo(Node<T> other) {
+            if (ReferenceEquals(this, other)) return 0;
+            if (ReferenceEquals(null, other)) return 1;
+            return this.GetHashCode().CompareTo(other.GetHashCode());
         }
     }
 }
